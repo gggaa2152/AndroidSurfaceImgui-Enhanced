@@ -57,9 +57,9 @@ bool M_Android_LoadFont(float SizePixels) {
 
 void init_My_drawdata() {
     ImGui::StyleColorsDark();
-    ImGui::My_Android_LoadSystemFont(25.0f);
-    M_Android_LoadFont(25.0f);
-    ImGui::GetStyle().ScaleAllSizes(3.25f);
+    ImGui::My_Android_LoadSystemFont(32.0f);  // 字体加大
+    M_Android_LoadFont(32.0f);
+    ImGui::GetStyle().ScaleAllSizes(1.0f);    // 取消全局缩放
 }
 
 void screen_config() {
@@ -96,20 +96,31 @@ void Layout_tick_UI(bool *main_thread_flag) {
     static bool show_draw_Line = false;
     static bool show_demo_window = false;
     
-    // ========== 原有功能窗口 ==========
-    { 
-        static float f = 0.0f;
-        static int counter = 0;
+    // 调整样式：加大间距，解决勾选框遮挡
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FramePadding = ImVec2(8, 6);      // 按钮内边距
+    style.ItemSpacing = ImVec2(10, 12);     // 项间距（垂直加大）
+    style.ItemInnerSpacing = ImVec2(6, 6);  // 内间距
+    style.IndentSpacing = 20;                // 缩进宽度
+    
+    // 主窗口（合并所有功能）
+    ImGui::Begin("✨ 银河外挂", main_thread_flag, 
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+    
+    // ===== 1. 系统信息栏（始终显示）=====
+    ImGui::PushFont(icon_font_2);
+    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 控制中心", ICON_FA_BOLT);
+    ImGui::PopFont();
+    ImGui::SameLine(ImGui::GetWindowWidth() - 120);
+    ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
+    ImGui::Separator();
+    ImGui::Spacing();
+    
+    // ===== 2. 基础设置（折叠）=====
+    if (ImGui::CollapsingHeader("⚙ 基础设置", ImGuiTreeNodeFlags_DefaultOpen)) {
         static int style_idx = 0;
-        static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-        ImGui::Begin("AndroidSurfaceImguiEnhanced", main_thread_flag);
-        if (::permeate_record_ini) {
-            ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
-            ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
-            permeate_record_ini = false;   
-        }
-        ImGui::Text("渲染接口 : %s, gui版本 : %s", graphics->RenderName, ImGui::GetVersion());
-        if (ImGui::Combo("##主题", &style_idx, "白色主题\0蓝色主题\0紫色主题\0")) {
+        ImGui::Combo("主题", &style_idx, "白色\0深色\0经典\0");
+        if (ImGui::IsItemDeactivated()) {
             switch (style_idx) {
                 case 0: ImGui::StyleColorsLight(); break;
                 case 1: ImGui::StyleColorsDark(); break;
@@ -117,51 +128,35 @@ void Layout_tick_UI(bool *main_thread_flag) {
             }
         }
         
-        if (ImGui::Checkbox("过录制", &::permeate_record)) {
-            ::permeate_record_ini = true;
-        }
-            
+        ImGui::Checkbox("过录制", &::permeate_record);
+        ImGui::SameLine(120);
         ImGui::Checkbox("演示窗口", &show_demo_window);
-        ImGui::SameLine();
+        ImGui::SameLine(240);
         ImGui::Checkbox("绘制射线", &show_draw_Line);
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        ImGui::ColorEdit4("取色器", (float *)&clear_color);
-        if (ImGui::Button("Button")) {
-            counter++;
-        }
         
-        ImGui::SameLine();
-        ImGui::Text("计数 = %d", counter);
-        ImGui::Text("窗口集中 = %d", ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow));
-        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "应用平均 %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        g_window = ImGui::GetCurrentWindow();
-        ImGui::End();
+        ImGui::Text("渲染: %s", graphics->RenderName);
+        ImGui::Text("GUI版本: %s", ImGui::GetVersion());
     }
     
-    // ========== 高级功能菜单 ==========
-    {
-        ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-        ImGui::Begin("✨ 高级功能", nullptr, ImGuiWindowFlags_NoCollapse);
-        
-        ImGui::PushFont(icon_font_2);
-        ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 战斗辅助", ICON_FA_SHIELD);
-        ImGui::PopFont();
-        ImGui::Separator();
-        
+    // ===== 3. 战斗辅助（折叠）=====
+    if (ImGui::CollapsingHeader(ICON_FA_SHIELD " 战斗辅助", ImGuiTreeNodeFlags_DefaultOpen)) {
         static bool god_mode = false;
         static bool aimbot = false;
         static bool esp = false;
         
-        if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(100, 36))) {
+        // 第一行
+        if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(120, 40))) {
             // 秒杀代码
         }
         ImGui::SameLine();
         ImGui::Checkbox(ICON_FA_SHIELD " 无敌", &god_mode);
         
+        // 第二行
         ImGui::Checkbox(ICON_FA_CROSSHAIRS " 自瞄", &aimbot);
-        ImGui::SameLine(100);
+        ImGui::SameLine(120);
         ImGui::Checkbox(ICON_FA_EYE " 透视", &esp);
         
+        // 自瞄二级菜单
         if (aimbot) {
             ImGui::Indent(20);
             ImGui::Separator();
@@ -175,23 +170,45 @@ void Layout_tick_UI(bool *main_thread_flag) {
             ImGui::Unindent(20);
         }
         
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-        
-        float fps = ImGui::GetIO().Framerate;
-        ImGui::Text("FPS: %.1f", fps);
-        ImGui::ProgressBar(fps / 120.0f, ImVec2(250, 0), "");
-        
-        ImGui::End();
+        // 透视二级菜单
+        if (esp) {
+            ImGui::Indent(20);
+            ImGui::Separator();
+            ImGui::Text(ICON_FA_EYE " 透视参数");
+            
+            static int range = 300;
+            ImGui::SliderInt("透视范围", &range, 100, 500, "%d米");
+            
+            ImGui::Unindent(20);
+        }
     }
     
-    // ========== 演示窗口 ==========
+    // ===== 4. 调试工具（折叠）=====
+    if (ImGui::CollapsingHeader("🔧 调试工具")) {
+        static float f = 0.5f;
+        static int counter = 0;
+        static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        
+        ImGui::SliderFloat("测试滑块", &f, 0.0f, 1.0f);
+        ImGui::ColorEdit4("取色器", (float*)&clear_color);
+        
+        if (ImGui::Button("计数器")) {
+            counter++;
+        }
+        ImGui::SameLine();
+        ImGui::Text("次数: %d", counter);
+        
+        ImGui::Text("窗口焦点: %d", ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow));
+    }
+    
+    ImGui::End();
+    
+    // ===== 演示窗口 =====
     if (show_demo_window) {
         ImGui::ShowDemoWindow(&show_demo_window);
     }
     
-    // ========== 射线绘制 ==========
+    // ===== 射线绘制 =====
     if (show_draw_Line) {
         ImGui::GetForegroundDrawList()->AddLine(
             ImVec2(0,0),
