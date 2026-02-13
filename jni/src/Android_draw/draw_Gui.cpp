@@ -29,6 +29,8 @@ ImGuiWindow *g_window = NULL;
 int abs_ScreenX = 0, abs_ScreenY = 0;
 int native_window_screen_x = 0, native_window_screen_y = 0;
 
+TextureInfo Aekun_image{};
+
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
 
@@ -57,7 +59,10 @@ bool M_Android_LoadFont(float SizePixels) {
 
 void init_My_drawdata() {
     ImGui::StyleColorsDark();
-    M_Android_LoadFont(28.0f);
+    ImGui::My_Android_LoadSystemFont(25.0f);
+    M_Android_LoadFont(25.0f);
+    ImGui::GetStyle().ScaleAllSizes(3.25f);
+    ::Aekun_image = graphics->LoadTextureFromMemory((void *)picture_ZhenAiKun_PNG_H, sizeof(picture_ZhenAiKun_PNG_H));
 }
 
 void screen_config() {
@@ -65,45 +70,94 @@ void screen_config() {
 }
 
 void drawBegin() {
-    // 原逻辑保留
+    if (::permeate_record_ini) {
+        LastCoordinate.Pos_x = ::g_window->Pos.x;
+        LastCoordinate.Pos_y = ::g_window->Pos.y;
+        LastCoordinate.Size_x = ::g_window->Size.x;
+        LastCoordinate.Size_y = ::g_window->Size.y;
+
+        graphics->Shutdown();
+        android::ANativeWindowCreator::Destroy(::window);
+        ::window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
+        graphics->Init_Render(::window, native_window_screen_x, native_window_screen_y);
+        ::init_My_drawdata();
+    }
+
+    static uint32_t orientation = -1;
+    screen_config();
+    if (orientation != displayInfo.orientation) {
+        orientation = displayInfo.orientation;
+        Touch::setOrientation((int)displayInfo.orientation);
+        if (g_window != NULL) {
+            g_window->Pos.x = 100;
+            g_window->Pos.y = 125;        
+        }
+    }
 }
 
 void Layout_tick_UI(bool *main_thread_flag) {
-    // 现代暗黑主题
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 10.0f;
-    style.FrameRounding = 6.0f;
-    style.GrabRounding = 6.0f;
-    style.WindowBorderSize = 0.0f;
-    style.FrameBorderSize = 0.0f;
-    style.WindowPadding = ImVec2(16, 16);
-    style.FramePadding = ImVec2(12, 8);
-    style.ItemSpacing = ImVec2(12, 10);
+    static bool show_draw_Line = false;
+    static bool show_demo_window = false;
+    static bool show_another_window = false;
     
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.08f, 0.08f, 0.12f, 0.96f);
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.45f, 0.25f, 0.65f, 1.00f);
-    style.Colors[ImGuiCol_Button] = ImVec4(0.45f, 0.25f, 0.65f, 1.00f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.55f, 0.35f, 0.75f, 1.00f);
-    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.35f, 0.15f, 0.55f, 1.00f);
-    style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 1.00f, 1.00f);
+    // ========== 原有功能窗口（缩放、主题、过录制等）==========
+    { 
+        static float f = 0.0f;
+        static int counter = 0;
+        static int style_idx = 0;
+        static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        ImGui::Begin("AndroidSurfaceImguiEnhanced", main_thread_flag);
+        if (::permeate_record_ini) {
+            ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
+            ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
+            permeate_record_ini = false;   
+        }
+        ImGui::Text("渲染接口 : %s, gui版本 : %s", graphics->RenderName, ImGui::GetVersion());
+        if (ImGui::Combo("##主题", &style_idx, "白色主题\0蓝色主题\0紫色主题\0")) {
+            switch (style_idx) {
+                case 0: ImGui::StyleColorsLight(); break;
+                case 1: ImGui::StyleColorsDark(); break;
+                case 2: ImGui::StyleColorsClassic(); break;
+            }
+        }
+        
+        if (ImGui::Checkbox("过录制", &::permeate_record)) {
+            ::permeate_record_ini = true;
+        }
+            
+        ImGui::Checkbox("演示窗口", &show_demo_window);
+        ImGui::SameLine();
+        ImGui::Checkbox("绘制射线", &show_draw_Line);
+        ImGui::Checkbox("坤坤窗口", &show_another_window);
+        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+        ImGui::ColorEdit4("取色器", (float *)&clear_color);
+        if (ImGui::Button("Button")) {
+            counter++;
+        }
+        
+        ImGui::SameLine();
+        ImGui::Text("计数 = %d", counter);
+        ImGui::Text("窗口集中 = %d", ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow));
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "应用平均 %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        g_window = ImGui::GetCurrentWindow();
+        ImGui::End();
+    }
     
-    ImGui::Begin("✨ 银河外挂", main_thread_flag, 
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
-    
-    // 标题
-    ImGui::PushFont(icon_font_2);
-    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 控制中心", ICON_FA_BOLT);
-    ImGui::PopFont();
-    ImGui::Separator();
-    ImGui::Spacing();
-    
-    // 战斗辅助
-    if (ImGui::CollapsingHeader(ICON_FA_SHIELD " 战斗辅助", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // ========== 高级功能菜单（全新，不覆盖原有功能）==========
+    {
+        ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+        ImGui::Begin("✨ 高级功能", nullptr, ImGuiWindowFlags_NoCollapse);
+        
+        ImGui::PushFont(icon_font_2);
+        ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 战斗辅助", ICON_FA_SHIELD);
+        ImGui::PopFont();
+        ImGui::Separator();
+        
         static bool god_mode = false;
         static bool aimbot = false;
         static bool esp = false;
         
-        if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(120, 40))) {
+        if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(100, 36))) {
             // 秒杀代码
         }
         ImGui::SameLine();
@@ -125,16 +179,39 @@ void Layout_tick_UI(bool *main_thread_flag) {
             
             ImGui::Unindent(20);
         }
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        
+        float fps = ImGui::GetIO().Framerate;
+        ImGui::Text("FPS: %.1f", fps);
+        ImGui::ProgressBar(fps / 120.0f, ImVec2(250, 0), "");
+        
+        ImGui::End();
     }
     
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    // ========== 坤坤窗口 ==========
+    if (show_another_window) {
+        ImGui::Begin("另一个窗口", &show_another_window);
+        ImGui::Text("另一个窗口的 爱坤!");
+        ImGui::Image(Aekun_image.DS, ImVec2(170, 170));
+        if (ImGui::Button("关闭这个坤口")) {
+            show_another_window = false;
+        }
+        ImGui::End();
+    }
     
-    // 系统状态
-    float fps = ImGui::GetIO().Framerate;
-    ImGui::Text("FPS: %.1f", fps);
-    ImGui::ProgressBar(fps / 120.0f, ImVec2(250, 0), "");
+    // ========== 演示窗口 ==========
+    if (show_demo_window) {
+        ImGui::ShowDemoWindow(&show_demo_window);
+    }
     
-    ImGui::End();
+    // ========== 射线绘制 ==========
+    if (show_draw_Line) {
+        ImGui::GetForegroundDrawList()->AddLine(
+            ImVec2(0,0),
+            ImVec2(displayInfo.width, displayInfo.height),
+            IM_COL32(255,0,0,255), 4);
+    }
 }
