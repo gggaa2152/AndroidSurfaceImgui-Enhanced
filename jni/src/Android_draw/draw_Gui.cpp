@@ -29,8 +29,6 @@ ImGuiWindow *g_window = NULL;
 int abs_ScreenX = 0, abs_ScreenY = 0;
 int native_window_screen_x = 0, native_window_screen_y = 0;
 
-TextureInfo Aekun_image{};
-
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
 
@@ -62,7 +60,6 @@ void init_My_drawdata() {
     ImGui::My_Android_LoadSystemFont(25.0f);
     M_Android_LoadFont(25.0f);
     ImGui::GetStyle().ScaleAllSizes(3.25f);
-    ::Aekun_image = graphics->LoadTextureFromMemory((void *)picture_ZhenAiKun_PNG_H, sizeof(picture_ZhenAiKun_PNG_H));
 }
 
 void screen_config() {
@@ -98,9 +95,8 @@ void drawBegin() {
 void Layout_tick_UI(bool *main_thread_flag) {
     static bool show_draw_Line = false;
     static bool show_demo_window = false;
-    static bool show_another_window = false;
     
-    // ========== 原有功能窗口（缩放、主题、过录制等）==========
+    // ========== 原有功能窗口 ==========
     { 
         static float f = 0.0f;
         static int counter = 0;
@@ -128,7 +124,6 @@ void Layout_tick_UI(bool *main_thread_flag) {
         ImGui::Checkbox("演示窗口", &show_demo_window);
         ImGui::SameLine();
         ImGui::Checkbox("绘制射线", &show_draw_Line);
-        ImGui::Checkbox("坤坤窗口", &show_another_window);
         ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
         ImGui::ColorEdit4("取色器", (float *)&clear_color);
         if (ImGui::Button("Button")) {
@@ -143,7 +138,7 @@ void Layout_tick_UI(bool *main_thread_flag) {
         ImGui::End();
     }
     
-    // ========== 高级功能菜单（全新，不覆盖原有功能）==========
+    // ========== 高级功能菜单 ==========
     {
         ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
         ImGui::Begin("✨ 高级功能", nullptr, ImGuiWindowFlags_NoCollapse);
@@ -188,17 +183,6 @@ void Layout_tick_UI(bool *main_thread_flag) {
         ImGui::Text("FPS: %.1f", fps);
         ImGui::ProgressBar(fps / 120.0f, ImVec2(250, 0), "");
         
-        ImGui::End();
-    }
-    
-    // ========== 坤坤窗口 ==========
-    if (show_another_window) {
-        ImGui::Begin("另一个窗口", &show_another_window);
-        ImGui::Text("另一个窗口的 爱坤!");
-        ImGui::Image(Aekun_image.DS, ImVec2(170, 170));
-        if (ImGui::Button("关闭这个坤口")) {
-            show_another_window = false;
-        }
         ImGui::End();
     }
     
