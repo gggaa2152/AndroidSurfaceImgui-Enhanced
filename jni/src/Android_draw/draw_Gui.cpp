@@ -61,35 +61,7 @@ void init_My_drawdata() {
     style.FrameRounding = 6.0f * g_global_scale;
 }
 
-void screen_config() {
-    ::displayInfo = android::ANativeWindowCreator::GetDisplayInfo();
-}
-
-void drawBegin() {
-    if (permeate_record_ini) {
-        LastCoordinate.Pos_x = g_window->Pos.x;
-        LastCoordinate.Pos_y = g_window->Pos.y;
-        LastCoordinate.Size_x = g_window->Size.x;
-        LastCoordinate.Size_y = g_window->Size.y;
-
-        graphics->Shutdown();
-        android::ANativeWindowCreator::Destroy(window);
-        window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
-        graphics->Init_Render(window, native_window_screen_x, native_window_screen_y);
-        init_My_drawdata();
-    }
-
-    static uint32_t orientation = -1;
-    screen_config();
-    if (orientation != displayInfo.orientation) {
-        orientation = displayInfo.orientation;
-        Touch::setOrientation((int)displayInfo.orientation);
-        if (g_window != NULL) {
-            g_window->Pos.x = 100;
-            g_window->Pos.y = 125;        
-        }
-    }
-}
+// ⚠️ screen_config() 和 drawBegin() 已删除，它们在 main.cpp 中
 
 void Layout_tick_UI(bool *main_thread_flag) {
     // 窗口位置记忆
