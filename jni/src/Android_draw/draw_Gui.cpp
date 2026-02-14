@@ -13,7 +13,7 @@
 #define ICON_FA_CROSSHAIRS "\xef\x81\x9b"
 #define ICON_FA_EYE "\xef\x81\xae"
 
-// ===== 只留 extern 声明，不要重复定义！=====
+// ===== 所有 extern 声明（这些变量在 main.cpp 中定义）=====
 extern bool permeate_record;
 extern bool permeate_record_ini;
 extern struct Last_ImRect LastCoordinate;
@@ -62,8 +62,7 @@ void init_My_drawdata() {
     style.FrameRounding = 6.0f;
 }
 
-// ⚠️ 注意：这里不再定义 screen_config() 和 drawBegin()
-// 它们已经在 main.cpp 中定义了
+// ===== screen_config() 和 drawBegin() 在 main.cpp 中定义，这里不再重复 =====
 
 void Layout_tick_UI(bool *main_thread_flag) {
     static int style_idx = 0;
@@ -133,18 +132,19 @@ void Layout_tick_UI(bool *main_thread_flag) {
     float width = 48.0f;
     float radius = height * 0.5f;
     
-    // 画背景
+    // 画背景（圆角矩形）
     ImU32 bgColor = aimbot ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
     ImGui::GetWindowDrawList()->AddRectFilled(
         p, ImVec2(p.x + width, p.y + height), bgColor, radius
     );
     
-    // 画滑块
+    // 画滑块（白色圆）
     float thumbPos = aimbot ? p.x + width - height : p.x;
     ImGui::GetWindowDrawList()->AddCircleFilled(
         ImVec2(thumbPos + radius, p.y + radius), radius - 3, IM_COL32_WHITE
     );
     
+    // 不可见按钮处理点击
     ImGui::InvisibleButton("##aimbot_toggle", ImVec2(width, height));
     if (ImGui::IsItemClicked()) {
         aimbot = !aimbot;
@@ -171,6 +171,11 @@ void Layout_tick_UI(bool *main_thread_flag) {
         
         ImGui::Unindent(24);
         ImGui::Spacing();
+    }
+    
+    // 持续执行的逻辑
+    if (aimbot) {
+        // 这里写每帧执行的自瞄代码
     }
     
     ImGui::Spacing();
