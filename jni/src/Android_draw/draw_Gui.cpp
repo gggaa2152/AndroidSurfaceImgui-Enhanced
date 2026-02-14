@@ -1,124 +1,223 @@
-#include "imgui.h"
-#include "imgui_internal.h"
-#include <math.h>
-#include <unistd.h>
+#include "draw.h"
+#include "My_font/zh_Font.h"
+#include "My_font/fontawesome-solid.h"
 
-static float g_ui_scale = 1.7f;
-static bool g_collapsed = false;  
-static ImVec2 g_ball_pos = ImVec2(200, 400);
+// FontAwesome 图标宏定义
+#ifndef ICON_MIN_FA
+#define ICON_MIN_FA 0xf000
+#define ICON_MAX_FA 0xf8ff
+#endif
+#define ICON_FA_BOLT "\xef\x83\xa7"
+#define ICON_FA_SHIELD "\xef\x84\xb2"
+#define ICON_FA_SKULL "\xef\x95\x8c"
+#define ICON_FA_CROSSHAIRS "\xef\x81\x9b"
+#define ICON_FA_EYE "\xef\x81\xae"
 
-void init_My_drawdata() {
+bool permeate_record = false;
+bool permeate_record_ini = false;
+struct Last_ImRect LastCoordinate = {0, 0, 0, 0};
+
+std::unique_ptr<AndroidImgui> graphics;
+ANativeWindow *window = NULL; 
+android::ANativeWindowCreator::DisplayInfo displayInfo;
+ImGuiWindow *g_window = NULL;
+int abs_ScreenX = 0, abs_ScreenY = 0;
+int native_window_screen_x = 0, native_window_screen_y = 0;
+
+ImFont* zh_font = NULL;
+ImFont* icon_font_2 = NULL;
+
+bool M_Android_LoadFont(float SizePixels) {
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
     
-    // Bug 修复：增加更多备选路径，并提高字号防止锯齿
-    const char* fonts[] = {
-        "/system/fonts/NotoSansSC-Regular.otf", 
-        "/system/fonts/DroidSansFallback.ttf",
-        "/system/fonts/NotoSansCJK-Regular.ttc",
-        "/system/fonts/Roboto-Regular.ttf" // 最后的保底
-    };
-    for (auto p : fonts) {
-        if (access(p, R_OK) == 0) {
-            // 使用更大字号加载，由 FontGlobalScale 缩小，画质更清晰
-            io.Fonts->AddFontFromFileTTF(p, 40.0f, NULL, io.Fonts->GetGlyphRangesChineseFull());
-            break;
-        }
-    }
+    ImGui::My_Android_LoadSystemFont(SizePixels);
+    zh_font = io.Fonts->Fonts[0];
+    
+    static const ImWchar icons_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+    ImFontConfig icons_config;
+    icons_config.MergeMode = true;
+    icons_config.SizePixels = SizePixels;
+    icons_config.GlyphOffset.y = 4.0f;
+    
+    icon_font_2 = io.Fonts->AddFontFromMemoryCompressedTTF(
+        (const void*)&font_awesome_solid_compressed_data,
+        sizeof(font_awesome_solid_compressed_data),
+        0.0f, &icons_config, icons_ranges);
+    
     io.Fonts->Build();
-    io.FontGlobalScale = g_ui_scale;
+    io.FontDefault = zh_font;
+    return true;
 }
 
-// 高端科技渐变条 (修复了错位问题)
-void RenderGlowBar() {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImVec2 p = ImGui::GetCursorScreenPos();
-    float w = ImGui::GetContentRegionAvail().x;
-    float t = (float)ImGui::GetTime();
+void init_My_drawdata() {
+    ImGui::StyleColorsDark();
+    ImGui::My_Android_LoadSystemFont(32.0f);
+    M_Android_LoadFont(32.0f);
     
-    ImU32 c1 = ImColor::HSV(fmodf(t * 0.15f, 1.0f), 0.7f, 1.0f);
-    ImU32 c2 = ImColor::HSV(fmodf(t * 0.15f + 0.3f, 1.0f), 0.7f, 1.0f);
-    
-    dl->AddRectFilledMultiColor(ImVec2(p.x, p.y), ImVec2(p.x + w, p.y + 3), c1, c2, c2, c1);
-    ImGui::Dummy(ImVec2(0, 15)); 
-}
-
-void Layout_tick_UI(bool *p_open) {
-    ImGuiIO& io = ImGui::GetIO();
-    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-
-    if (g_collapsed) {
-        // --- 修复版悬浮圆标：完美居中 ---
-        ImGui::SetNextWindowPos(g_ball_pos);
-        ImGui::SetNextWindowSize(ImVec2(100, 100));
-        ImGui::Begin("Ball", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground);
-        
-        ImVec2 center = ImVec2(g_ball_pos.x + 50, g_ball_pos.y + 50);
-        float pulse = sinf((float)ImGui::GetTime() * 4.0f) * 4.0f;
-        
-        bg_dl->AddCircleFilled(center, 35 + pulse, IM_COL32(255, 40, 80, 160), 64);
-        bg_dl->AddCircle(center, 38 + pulse, IM_COL32(255, 255, 255, 180), 64, 2.0f);
-        
-        // 强制居中绘制字母 G
-        char icon[] = "G";
-        ImVec2 txt_sz = ImGui::CalcTextSize(icon);
-        bg_dl->AddText(ImVec2(center.x - txt_sz.x/2, center.y - txt_sz.y/2), IM_COL32(255, 255, 255, 255), icon);
-        
-        if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0)) g_collapsed = false;
-        if (ImGui::IsMouseDragging(0) && ImGui::IsWindowHovered()) {
-            g_ball_pos.x += io.MouseDelta.x; g_ball_pos.y += io.MouseDelta.y;
-        }
-        ImGui::End();
-        return;
-    }
-
-    // --- 修复版主菜单：解决窗口过矮、按钮截断问题 ---
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 12.0f;
-    style.FramePadding = ImVec2(15, 12); // 解决点击范围小和文字一半的问题
-    style.ItemSpacing = ImVec2(10, 15);
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.08f, 0.98f);
-    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.10f, 0.10f, 0.12f, 0.40f);
+    style.FramePadding = ImVec2(10, 8);
+    style.ItemSpacing = ImVec2(12, 14);
+    style.WindowPadding = ImVec2(16, 16);
+    style.FrameRounding = 6.0f;
+}
 
-    ImGui::SetNextWindowSize(ImVec2(800, 520), ImGuiCond_Always);
-    if (ImGui::Begin("GALAXY_FIXED", p_open, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize)) {
-        RenderGlowBar();
+void screen_config() {
+    ::displayInfo = android::ANativeWindowCreator::GetDisplayInfo();
+}
 
-        // 顶部 Header：增加按钮宽度防止文字消失
-        ImGui::TextColored(ImColor(255, 45, 85), "GALAXY PREMIUM | %0.1f FPS", io.Framerate);
-        ImGui::SameLine(ImGui::GetWindowWidth() - 140); 
-        if (ImGui::Button("收起菜单", ImVec2(120, 45))) g_collapsed = true; 
-        
-        ImGui::Separator();
-        ImGui::Spacing();
+void drawBegin() {
+    if (::permeate_record_ini) {
+        LastCoordinate.Pos_x = ::g_window->Pos.x;
+        LastCoordinate.Pos_y = ::g_window->Pos.y;
+        LastCoordinate.Size_x = ::g_window->Size.x;
+        LastCoordinate.Size_y = ::g_window->Size.y;
 
-        // 解决错位：使用两列等高 Child
-        float child_h = 360.0f; 
-        ImGui::Columns(2, "Content", false);
-        
-        // 左卡片
-        ImGui::BeginChild("AimCard", ImVec2(0, child_h), true);
-        ImGui::TextColored(ImColor(0, 180, 255), "⚔ 战斗修改");
-        ImGui::Separator();
-        static bool b1, b2;
-        ImGui::Checkbox(" 自动锁定目标", &b1);
-        ImGui::Checkbox(" 无后坐力模式", &b2);
-        ImGui::EndChild();
-
-        ImGui::NextColumn();
-
-        // 右卡片
-        ImGui::BeginChild("SysCard", ImVec2(0, child_h), true);
-        ImGui::TextColored(ImColor(0, 255, 150), "⚙ 系统设置");
-        ImGui::Separator();
-        ImGui::Text("全局缩放");
-        if (ImGui::SliderFloat("##ScaleSlider", &g_ui_scale, 1.0f, 2.5f)) {
-            io.FontGlobalScale = g_ui_scale;
-        }
-        if (ImGui::Button("清理残留缓存", ImVec2(-1, 50))) { /* 逻辑 */ }
-        ImGui::EndChild();
-        
-        ImGui::Columns(1);
+        graphics->Shutdown();
+        android::ANativeWindowCreator::Destroy(::window);
+        ::window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
+        graphics->Init_Render(::window, native_window_screen_x, native_window_screen_y);
+        ::init_My_drawdata();
     }
+
+    static uint32_t orientation = -1;
+    screen_config();
+    if (orientation != displayInfo.orientation) {
+        orientation = displayInfo.orientation;
+        Touch::setOrientation((int)displayInfo.orientation);
+        if (g_window != NULL) {
+            g_window->Pos.x = 100;
+            g_window->Pos.y = 125;        
+        }
+    }
+}
+
+void Layout_tick_UI(bool *main_thread_flag) {
+    static int style_idx = 0;
+    
+    // 窗口位置记忆
+    if (::permeate_record_ini) {
+        ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
+        ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
+        permeate_record_ini = false;   
+    }
+    
+    // ===== 主菜单窗口 =====
+    ImGui::Begin("✨ 银河外挂", main_thread_flag, 
+        ImGuiWindowFlags_NoCollapse);
+    
+    // ----- 标题栏 -----
+    ImGui::PushFont(icon_font_2);
+    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 控制中心", ICON_FA_BOLT);
+    ImGui::PopFont();
+    ImGui::SameLine(ImGui::GetWindowWidth() - 100);
+    ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
+    ImGui::Separator();
+    ImGui::Spacing();
+    
+    // ----- 基础设置 -----
+    ImGui::Text("基础设置");
+    ImGui::Separator();
+    
+    ImGui::Combo("##主题", &style_idx, "白色主题\0深色主题\0经典主题\0");
+    if (ImGui::IsItemDeactivated()) {
+        switch (style_idx) {
+            case 0: ImGui::StyleColorsLight(); break;
+            case 1: ImGui::StyleColorsDark(); break;
+            case 2: ImGui::StyleColorsClassic(); break;
+        }
+    }
+    
+    ImGui::Checkbox("过录制", &::permeate_record);
+    
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    
+    // ===== 战斗辅助 =====
+    ImGui::PushFont(icon_font_2);
+    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 战斗辅助", ICON_FA_SHIELD);
+    ImGui::PopFont();
+    ImGui::Separator();
+    
+    static bool god_mode = false;
+    static bool aimbot = false;
+    static bool esp = false;
+    
+    // 第一行：秒杀 + 无敌
+    if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(130, 42))) {
+        // 秒杀代码
+    }
+    ImGui::SameLine(160);
+    ImGui::Checkbox(ICON_FA_SHIELD " 无敌", &god_mode);
+    
+    // ===== 第二行：触摸自瞄（带自定义滑动开关）=====
+    ImGui::Text("触摸自瞄");
+    ImGui::SameLine(120);
+    
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float height = 24.0f;
+    float width = 48.0f;
+    float radius = height * 0.5f;
+    
+    // 画背景（圆角矩形）
+    ImU32 bgColor = aimbot ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        p, 
+        ImVec2(p.x + width, p.y + height), 
+        bgColor, 
+        radius
+    );
+    
+    // 画滑块（白色圆）
+    float thumbPos = aimbot ? p.x + width - height : p.x;
+    ImGui::GetWindowDrawList()->AddCircleFilled(
+        ImVec2(thumbPos + radius, p.y + radius), 
+        radius - 3, 
+        IM_COL32_WHITE
+    );
+    
+    // 不可见按钮处理点击
+    ImGui::InvisibleButton("##aimbot_toggle", ImVec2(width, height));
+    if (ImGui::IsItemClicked()) {
+        aimbot = !aimbot;
+        if (aimbot) {
+            __android_log_print(ANDROID_LOG_INFO, "PureElf", "触摸自瞄开启");
+        } else {
+            __android_log_print(ANDROID_LOG_INFO, "PureElf", "触摸自瞄关闭");
+        }
+    }
+    
+    ImGui::SameLine(200);
+    ImGui::Checkbox(ICON_FA_EYE " 透视", &esp);
+    
+    // 自瞄二级菜单
+    if (aimbot) {
+        ImGui::Indent(24);
+        ImGui::Separator();
+        ImGui::Text(ICON_FA_CROSSHAIRS " 自瞄参数");
+        
+        static float smooth = 1.2f;
+        static int fov = 90;
+        ImGui::SliderFloat("平滑度", &smooth, 0.5f, 3.0f, "%.1f倍");
+        ImGui::SliderInt("范围", &fov, 30, 180, "%d°");
+        
+        ImGui::Unindent(24);
+        ImGui::Spacing();
+    }
+    
+    // 持续执行的逻辑
+    if (aimbot) {
+        // 这里写每帧执行的自瞄代码
+        // __android_log_print(ANDROID_LOG_INFO, "PureElf", "自瞄运行中");
+    }
+    
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    
     ImGui::End();
+    
+    // 记录窗口位置
+    g_window = ImGui::GetCurrentWindow();
 }
