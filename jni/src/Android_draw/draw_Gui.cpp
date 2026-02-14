@@ -52,18 +52,16 @@ bool M_Android_LoadFont(float SizePixels) {
 
 void init_My_drawdata() {
     ImGui::StyleColorsDark();
-    ImGui::My_Android_LoadSystemFont(36.0f);  // 字体加大到36
+    ImGui::My_Android_LoadSystemFont(36.0f);
     M_Android_LoadFont(36.0f);
     
-    // 全局样式调整
     ImGuiStyle& style = ImGui::GetStyle();
-    style.FramePadding = ImVec2(10, 8);      // 按钮内边距
-    style.ItemSpacing = ImVec2(12, 14);      // 项间距（垂直加大到14）
-    style.ItemInnerSpacing = ImVec2(8, 8);   // 内间距
-    style.IndentSpacing = 24;                 // 缩进宽度
-    style.WindowPadding = ImVec2(16, 16);     // 窗口内边距
-    style.FrameRounding = 6.0f;               // 按钮圆角
-    style.GrabRounding = 6.0f;                // 滑块圆角
+    style.FramePadding = ImVec2(10, 8);
+    style.ItemSpacing = ImVec2(12, 14);
+    style.ItemInnerSpacing = ImVec2(8, 8);
+    style.IndentSpacing = 24;
+    style.WindowPadding = ImVec2(16, 16);
+    style.FrameRounding = 6.0f;
 }
 
 void screen_config() {
@@ -97,8 +95,6 @@ void drawBegin() {
 }
 
 void Layout_tick_UI(bool *main_thread_flag) {
-    static bool show_draw_Line = false;
-    static bool show_demo_window = false;
     static int style_idx = 0;
     
     // 窗口位置记忆
@@ -108,7 +104,7 @@ void Layout_tick_UI(bool *main_thread_flag) {
         permeate_record_ini = false;   
     }
     
-    // 主窗口（允许缩放）
+    // ===== 唯一的主菜单窗口 =====
     ImGui::Begin("✨ 银河外挂", main_thread_flag, 
         ImGuiWindowFlags_NoCollapse);
     
@@ -135,12 +131,8 @@ void Layout_tick_UI(bool *main_thread_flag) {
         }
     }
     
-    // 复选框行（加大间距）
+    // 过录制开关
     ImGui::Checkbox("过录制", &::permeate_record);
-    ImGui::SameLine(130);
-    ImGui::Checkbox("演示窗口", &show_demo_window);
-    ImGui::SameLine(260);
-    ImGui::Checkbox("绘制射线", &show_draw_Line);
     
     ImGui::Text("渲染: %s", graphics->RenderName);
     ImGui::Text("GUI版本: %s", ImGui::GetVersion());
@@ -160,15 +152,15 @@ void Layout_tick_UI(bool *main_thread_flag) {
     static bool esp = false;
     
     // 第一行：秒杀 + 无敌
-    if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(120, 42))) {
+    if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(130, 42))) {
         // 秒杀代码
     }
-    ImGui::SameLine(140);
+    ImGui::SameLine(160);
     ImGui::Checkbox(ICON_FA_SHIELD " 无敌", &god_mode);
     
     // 第二行：自瞄 + 透视
     ImGui::Checkbox(ICON_FA_CROSSHAIRS " 自瞄", &aimbot);
-    ImGui::SameLine(140);
+    ImGui::SameLine(160);
     ImGui::Checkbox(ICON_FA_EYE " 透视", &esp);
     
     // 自瞄二级菜单
@@ -222,24 +214,11 @@ void Layout_tick_UI(bool *main_thread_flag) {
     
     ImGui::Text("窗口焦点: %d", ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow));
     
-    // 右下角提示
+    // 右下角缩放提示
     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "右下角可拖动缩放");
     
     ImGui::End();
     
     // 记录窗口位置
     g_window = ImGui::GetCurrentWindow();
-    
-    // 演示窗口
-    if (show_demo_window) {
-        ImGui::ShowDemoWindow(&show_demo_window);
-    }
-    
-    // 射线绘制
-    if (show_draw_Line) {
-        ImGui::GetForegroundDrawList()->AddLine(
-            ImVec2(0,0),
-            ImVec2(displayInfo.width, displayInfo.height),
-            IM_COL32(255,0,0,255), 4);
-    }
 }
