@@ -144,4 +144,6 @@ void Layout_tick_UI(bool *main_thread_flag) {
     
     // 记录窗口位置
     g_window = ImGui::GetCurrentWindow();
+    
+    // ⚠️ 绝对没有 ShowDemoWindow 或 ShowMetricsWindow
 }
