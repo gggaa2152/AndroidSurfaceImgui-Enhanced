@@ -7,7 +7,7 @@
 #define ICON_MAX_FA 0xf8ff
 #endif
 
-// ===== 这些在 main.cpp 中有定义 =====
+// ===== 在 main.cpp 中定义的变量 =====
 extern bool permeate_record;
 extern std::unique_ptr<AndroidImgui> graphics;
 extern ANativeWindow *window;
@@ -15,10 +15,14 @@ extern android::ANativeWindowCreator::DisplayInfo displayInfo;
 extern int abs_ScreenX, abs_ScreenY;
 extern int native_window_screen_x, native_window_screen_y;
 
-// ===== 这些在 main.cpp 中没有，在 draw_Gui.cpp 中定义 =====
+// ===== 在 draw_Gui.cpp 中定义的变量 =====
 bool permeate_record_ini = false;
 struct Last_ImRect LastCoordinate = {0, 0, 0, 0};
 ImGuiWindow *g_window = NULL;
+
+// ===== 缩放相关变量 =====
+static float g_global_scale = 1.0f;
+static bool g_show_settings = false;
 
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
@@ -27,13 +31,13 @@ bool M_Android_LoadFont(float SizePixels) {
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
     
-    ImGui::My_Android_LoadSystemFont(SizePixels);
+    ImGui::My_Android_LoadSystemFont(SizePixels * g_global_scale);
     zh_font = io.Fonts->Fonts[0];
     
     static const ImWchar icons_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
     ImFontConfig icons_config;
     icons_config.MergeMode = true;
-    icons_config.SizePixels = SizePixels;
+    icons_config.SizePixels = SizePixels * g_global_scale;
     icons_config.GlyphOffset.y = 4.0f;
     
     icon_font_2 = io.Fonts->AddFontFromMemoryCompressedTTF(
@@ -48,32 +52,95 @@ bool M_Android_LoadFont(float SizePixels) {
 
 void init_My_drawdata() {
     ImGui::StyleColorsDark();
-    ImGui::My_Android_LoadSystemFont(32.0f);
     M_Android_LoadFont(32.0f);
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FramePadding = ImVec2(10, 8) * g_global_scale;
+    style.ItemSpacing = ImVec2(12, 14) * g_global_scale;
+    style.WindowPadding = ImVec2(16, 16) * g_global_scale;
+    style.FrameRounding = 6.0f * g_global_scale;
 }
 
-// screen_config() 和 drawBegin() 在 main.cpp 中
+void screen_config() {
+    ::displayInfo = android::ANativeWindowCreator::GetDisplayInfo();
+}
+
+void drawBegin() {
+    if (permeate_record_ini) {
+        LastCoordinate.Pos_x = g_window->Pos.x;
+        LastCoordinate.Pos_y = g_window->Pos.y;
+        LastCoordinate.Size_x = g_window->Size.x;
+        LastCoordinate.Size_y = g_window->Size.y;
+
+        graphics->Shutdown();
+        android::ANativeWindowCreator::Destroy(window);
+        window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
+        graphics->Init_Render(window, native_window_screen_x, native_window_screen_y);
+        init_My_drawdata();
+    }
+
+    static uint32_t orientation = -1;
+    screen_config();
+    if (orientation != displayInfo.orientation) {
+        orientation = displayInfo.orientation;
+        Touch::setOrientation((int)displayInfo.orientation);
+        if (g_window != NULL) {
+            g_window->Pos.x = 100;
+            g_window->Pos.y = 125;        
+        }
+    }
+}
 
 void Layout_tick_UI(bool *main_thread_flag) {
-    // 窗口位置记忆（使用本文件定义的变量）
+    // 窗口位置记忆
     if (permeate_record_ini) {
         ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
         ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
         permeate_record_ini = false;   
     }
     
-    // ===== 唯一的滑动开关 =====
+    // ===== 主菜单窗口（可缩放）=====
     ImGui::Begin("自定义开关", main_thread_flag, 
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+        ImGuiWindowFlags_NoCollapse);
     
+    // ----- 标题栏 + 设置按钮 -----
+    ImGui::Text("控制中心");
+    ImGui::SameLine(ImGui::GetWindowWidth() - 60);
+    if (ImGui::Button("⚙")) {
+        g_show_settings = !g_show_settings;
+    }
+    ImGui::Separator();
+    ImGui::Spacing();
+    
+    // ----- 设置面板（缩放控制）-----
+    if (g_show_settings) {
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.00f), "显示设置");
+        ImGui::Separator();
+        
+        static int scale_percent = 100;
+        ImGui::Text("界面缩放");
+        ImGui::SameLine(100);
+        if (ImGui::SliderInt("##scale", &scale_percent, 80, 150, "%d%%")) {
+            g_global_scale = scale_percent / 100.0f;
+        }
+        if (ImGui::IsItemDeactivated()) {
+            init_My_drawdata();
+        }
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+    }
+    
+    // ----- 滑动开关 -----
     static bool bSwitch = false;
     
     ImGui::Text("触摸自瞄");
-    ImGui::SameLine(120);
+    ImGui::SameLine(120 * g_global_scale);
     
     ImVec2 p = ImGui::GetCursorScreenPos();
-    float height = 24.0f;
-    float width = 48.0f;
+    float height = 24.0f * g_global_scale;
+    float width = 48.0f * g_global_scale;
     float radius = height * 0.5f;
     
     ImU32 bgColor = bSwitch ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
@@ -91,8 +158,17 @@ void Layout_tick_UI(bool *main_thread_flag) {
         bSwitch = !bSwitch;
     }
     
-    ImGui::SameLine(180);
+    ImGui::SameLine(180 * g_global_scale);
     ImGui::Text(bSwitch ? "开启" : "关闭");
+    
+    // ----- FPS 显示 -----
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+    ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
+    
+    // ----- 右下角缩放提示 -----
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "右下角可拖动缩放");
     
     ImGui::End();
     
