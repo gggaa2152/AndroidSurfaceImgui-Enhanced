@@ -7,24 +7,17 @@
 #define ICON_MIN_FA 0xf000
 #define ICON_MAX_FA 0xf8ff
 #endif
-#define ICON_FA_BOLT "\xef\x83\xa7"
-#define ICON_FA_SHIELD "\xef\x84\xb2"
-#define ICON_FA_SKULL "\xef\x95\x8c"
-#define ICON_FA_CROSSHAIRS "\xef\x81\x9b"
-#define ICON_FA_EYE "\xef\x81\xae"
 
-// ===== 在 main.cpp 中定义的变量（用 extern）=====
-extern bool permeate_record;
-extern std::unique_ptr<AndroidImgui> graphics;
-extern ANativeWindow *window;
-extern android::ANativeWindowCreator::DisplayInfo displayInfo;
-extern int abs_ScreenX, abs_ScreenY;
-extern int native_window_screen_x, native_window_screen_y;
-
-// ===== 在 draw_Gui.cpp 中定义的变量（去掉 extern）=====
+bool permeate_record = false;
 bool permeate_record_ini = false;
 struct Last_ImRect LastCoordinate = {0, 0, 0, 0};
+
+std::unique_ptr<AndroidImgui> graphics;
+ANativeWindow *window = NULL; 
+android::ANativeWindowCreator::DisplayInfo displayInfo;
 ImGuiWindow *g_window = NULL;
+int abs_ScreenX = 0, abs_ScreenY = 0;
+int native_window_screen_x = 0, native_window_screen_y = 0;
 
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
@@ -64,127 +57,87 @@ void init_My_drawdata() {
     style.FrameRounding = 6.0f;
 }
 
-// screen_config() 和 drawBegin() 在 main.cpp 中定义
+void screen_config() {
+    ::displayInfo = android::ANativeWindowCreator::GetDisplayInfo();
+}
+
+void drawBegin() {
+    if (::permeate_record_ini) {
+        LastCoordinate.Pos_x = ::g_window->Pos.x;
+        LastCoordinate.Pos_y = ::g_window->Pos.y;
+        LastCoordinate.Size_x = ::g_window->Size.x;
+        LastCoordinate.Size_y = ::g_window->Size.y;
+
+        graphics->Shutdown();
+        android::ANativeWindowCreator::Destroy(::window);
+        ::window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
+        graphics->Init_Render(::window, native_window_screen_x, native_window_screen_y);
+        ::init_My_drawdata();
+    }
+
+    static uint32_t orientation = -1;
+    screen_config();
+    if (orientation != displayInfo.orientation) {
+        orientation = displayInfo.orientation;
+        Touch::setOrientation((int)displayInfo.orientation);
+        if (g_window != NULL) {
+            g_window->Pos.x = 100;
+            g_window->Pos.y = 125;        
+        }
+    }
+}
 
 void Layout_tick_UI(bool *main_thread_flag) {
-    static int style_idx = 0;
-    
-    // 窗口位置记忆（使用本文件定义的变量）
-    if (permeate_record_ini) {
+    // 窗口位置记忆
+    if (::permeate_record_ini) {
         ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
         ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
         permeate_record_ini = false;   
     }
     
-    // ===== 主菜单窗口 =====
-    ImGui::Begin("✨ 银河外挂", main_thread_flag, 
-        ImGuiWindowFlags_NoCollapse);
+    // ===== 唯一的窗口：自定义滑动开关 =====
+    ImGui::Begin("自定义开关", main_thread_flag, 
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     
-    // ----- 标题栏 -----
-    ImGui::PushFont(icon_font_2);
-    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 控制中心", ICON_FA_BOLT);
-    ImGui::PopFont();
-    ImGui::SameLine(ImGui::GetWindowWidth() - 100);
-    ImGui::Text("FPS: %.0f", ImGui::GetIO().Framerate);
-    ImGui::Separator();
-    ImGui::Spacing();
+    // 开关状态
+    static bool bSwitch = false;
     
-    // ----- 基础设置 -----
-    ImGui::Text("基础设置");
-    ImGui::Separator();
-    
-    ImGui::Combo("##主题", &style_idx, "白色主题\0深色主题\0经典主题\0");
-    if (ImGui::IsItemDeactivated()) {
-        switch (style_idx) {
-            case 0: ImGui::StyleColorsLight(); break;
-            case 1: ImGui::StyleColorsDark(); break;
-            case 2: ImGui::StyleColorsClassic(); break;
-        }
-    }
-    
-    ImGui::Checkbox("过录制", &permeate_record);
-    
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-    
-    // ===== 战斗辅助 =====
-    ImGui::PushFont(icon_font_2);
-    ImGui::TextColored(ImVec4(0.65f, 0.85f, 1.00f, 1.00f), "%s 战斗辅助", ICON_FA_SHIELD);
-    ImGui::PopFont();
-    ImGui::Separator();
-    
-    static bool god_mode = false;
-    static bool aimbot = false;
-    static bool esp = false;
-    
-    // 第一行：秒杀 + 无敌
-    if (ImGui::Button(ICON_FA_SKULL " 秒杀", ImVec2(130, 42))) {
-        // 秒杀代码
-    }
-    ImGui::SameLine(160);
-    ImGui::Checkbox(ICON_FA_SHIELD " 无敌", &god_mode);
-    
-    // ===== 第二行：触摸自瞄（带自定义滑动开关）=====
+    // 显示文字
     ImGui::Text("触摸自瞄");
     ImGui::SameLine(120);
     
+    // 获取当前绘制位置
     ImVec2 p = ImGui::GetCursorScreenPos();
     float height = 24.0f;
     float width = 48.0f;
     float radius = height * 0.5f;
     
-    // 画背景
-    ImU32 bgColor = aimbot ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
+    // 画背景（圆角矩形）- 开启时绿色，关闭时灰色
+    ImU32 bgColor = bSwitch ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
     ImGui::GetWindowDrawList()->AddRectFilled(
         p, ImVec2(p.x + width, p.y + height), bgColor, radius
     );
     
-    // 画滑块
-    float thumbPos = aimbot ? p.x + width - height : p.x;
+    // 画滑块（白色圆）- 开启时在右边，关闭时在左边
+    float thumbPos = bSwitch ? p.x + width - height : p.x;
     ImGui::GetWindowDrawList()->AddCircleFilled(
         ImVec2(thumbPos + radius, p.y + radius), radius - 3, IM_COL32_WHITE
     );
     
-    ImGui::InvisibleButton("##aimbot_toggle", ImVec2(width, height));
+    // 不可见按钮处理点击事件
+    ImGui::InvisibleButton("##toggle", ImVec2(width, height));
     if (ImGui::IsItemClicked()) {
-        aimbot = !aimbot;
-        if (aimbot) {
-            __android_log_print(ANDROID_LOG_INFO, "PureElf", "触摸自瞄开启");
-        } else {
-            __android_log_print(ANDROID_LOG_INFO, "PureElf", "触摸自瞄关闭");
-        }
+        bSwitch = !bSwitch;
+        // 点击时的日志（可选）
+        __android_log_print(ANDROID_LOG_INFO, "PureElf", "开关状态: %s", bSwitch ? "开启" : "关闭");
     }
     
-    ImGui::SameLine(200);
-    ImGui::Checkbox(ICON_FA_EYE " 透视", &esp);
-    
-    // 自瞄二级菜单
-    if (aimbot) {
-        ImGui::Indent(24);
-        ImGui::Separator();
-        ImGui::Text(ICON_FA_CROSSHAIRS " 自瞄参数");
-        
-        static float smooth = 1.2f;
-        static int fov = 90;
-        ImGui::SliderFloat("平滑度", &smooth, 0.5f, 3.0f, "%.1f倍");
-        ImGui::SliderInt("范围", &fov, 30, 180, "%d°");
-        
-        ImGui::Unindent(24);
-        ImGui::Spacing();
-    }
-    
-    // 持续执行的逻辑
-    if (aimbot) {
-        // 自瞄代码
-    }
-    
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    // 可选：显示当前状态文字
+    ImGui::SameLine(180);
+    ImGui::Text(bSwitch ? "开启" : "关闭");
     
     ImGui::End();
     
-    // 记录窗口位置（使用本文件定义的变量）
+    // 记录窗口位置
     g_window = ImGui::GetCurrentWindow();
 }
