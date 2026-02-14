@@ -55,9 +55,9 @@ void init_My_drawdata() {
     M_Android_LoadFont(32.0f);
     
     ImGuiStyle& style = ImGui::GetStyle();
-    style.FramePadding = ImVec2(10, 8) * g_global_scale;
-    style.ItemSpacing = ImVec2(12, 14) * g_global_scale;
-    style.WindowPadding = ImVec2(16, 16) * g_global_scale;
+    style.FramePadding = ImVec2(10 * g_global_scale, 8 * g_global_scale);
+    style.ItemSpacing = ImVec2(12 * g_global_scale, 14 * g_global_scale);
+    style.WindowPadding = ImVec2(16 * g_global_scale, 16 * g_global_scale);
     style.FrameRounding = 6.0f * g_global_scale;
 }
 
