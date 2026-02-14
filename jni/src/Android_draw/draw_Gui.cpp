@@ -61,8 +61,6 @@ void init_My_drawdata() {
     style.FrameRounding = 6.0f * g_global_scale;
 }
 
-// ⚠️ screen_config() 和 drawBegin() 已删除，它们在 main.cpp 中
-
 void Layout_tick_UI(bool *main_thread_flag) {
     // 窗口位置记忆
     if (permeate_record_ini) {
@@ -71,7 +69,7 @@ void Layout_tick_UI(bool *main_thread_flag) {
         permeate_record_ini = false;   
     }
     
-    // ===== 主菜单窗口（可缩放）=====
+    // ===== 唯一的窗口 =====
     ImGui::Begin("自定义开关", main_thread_flag, 
         ImGuiWindowFlags_NoCollapse);
     
@@ -91,7 +89,7 @@ void Layout_tick_UI(bool *main_thread_flag) {
         
         static int scale_percent = 100;
         ImGui::Text("界面缩放");
-        ImGui::SameLine(100);
+        ImGui::SameLine(100 * g_global_scale);
         if (ImGui::SliderInt("##scale", &scale_percent, 80, 150, "%d%%")) {
             g_global_scale = scale_percent / 100.0f;
         }
