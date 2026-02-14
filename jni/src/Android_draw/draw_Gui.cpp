@@ -7,16 +7,18 @@
 #define ICON_MAX_FA 0xf8ff
 #endif
 
-// ===== 只保留必须的全局变量（用 extern）=====
+// ===== 这些在 main.cpp 中有定义 =====
 extern bool permeate_record;
-extern bool permeate_record_ini;
-extern struct Last_ImRect LastCoordinate;
 extern std::unique_ptr<AndroidImgui> graphics;
 extern ANativeWindow *window;
 extern android::ANativeWindowCreator::DisplayInfo displayInfo;
-extern ImGuiWindow *g_window;
 extern int abs_ScreenX, abs_ScreenY;
 extern int native_window_screen_x, native_window_screen_y;
+
+// ===== 这些在 main.cpp 中没有，在 draw_Gui.cpp 中定义 =====
+bool permeate_record_ini = false;
+struct Last_ImRect LastCoordinate = {0, 0, 0, 0};
+ImGuiWindow *g_window = NULL;
 
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
@@ -50,17 +52,17 @@ void init_My_drawdata() {
     M_Android_LoadFont(32.0f);
 }
 
-// ===== 删除 screen_config() 和 drawBegin()，它们在 main.cpp 里 =====
+// screen_config() 和 drawBegin() 在 main.cpp 中
 
 void Layout_tick_UI(bool *main_thread_flag) {
-    // 窗口位置记忆
+    // 窗口位置记忆（使用本文件定义的变量）
     if (permeate_record_ini) {
         ImGui::SetWindowPos({LastCoordinate.Pos_x, LastCoordinate.Pos_y});
         ImGui::SetWindowSize({LastCoordinate.Size_x, LastCoordinate.Size_y});
         permeate_record_ini = false;   
     }
     
-    // ===== 只有一个滑动开关 =====
+    // ===== 唯一的滑动开关 =====
     ImGui::Begin("自定义开关", main_thread_flag, 
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     
@@ -94,5 +96,6 @@ void Layout_tick_UI(bool *main_thread_flag) {
     
     ImGui::End();
     
+    // 记录窗口位置
     g_window = ImGui::GetCurrentWindow();
 }
