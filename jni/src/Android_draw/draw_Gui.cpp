@@ -13,16 +13,16 @@
 #define ICON_FA_CROSSHAIRS "\xef\x81\x9b"
 #define ICON_FA_EYE "\xef\x81\xae"
 
-bool permeate_record = false;
-bool permeate_record_ini = false;
-struct Last_ImRect LastCoordinate = {0, 0, 0, 0};
-
-std::unique_ptr<AndroidImgui> graphics;
-ANativeWindow *window = NULL; 
-android::ANativeWindowCreator::DisplayInfo displayInfo;
-ImGuiWindow *g_window = NULL;
-int abs_ScreenX = 0, abs_ScreenY = 0;
-int native_window_screen_x = 0, native_window_screen_y = 0;
+// ===== 只留 extern 声明，不要重复定义！=====
+extern bool permeate_record;
+extern bool permeate_record_ini;
+extern struct Last_ImRect LastCoordinate;
+extern std::unique_ptr<AndroidImgui> graphics;
+extern ANativeWindow *window;
+extern android::ANativeWindowCreator::DisplayInfo displayInfo;
+extern ImGuiWindow *g_window;
+extern int abs_ScreenX, abs_ScreenY;
+extern int native_window_screen_x, native_window_screen_y;
 
 ImFont* zh_font = NULL;
 ImFont* icon_font_2 = NULL;
@@ -62,35 +62,8 @@ void init_My_drawdata() {
     style.FrameRounding = 6.0f;
 }
 
-void screen_config() {
-    ::displayInfo = android::ANativeWindowCreator::GetDisplayInfo();
-}
-
-void drawBegin() {
-    if (::permeate_record_ini) {
-        LastCoordinate.Pos_x = ::g_window->Pos.x;
-        LastCoordinate.Pos_y = ::g_window->Pos.y;
-        LastCoordinate.Size_x = ::g_window->Size.x;
-        LastCoordinate.Size_y = ::g_window->Size.y;
-
-        graphics->Shutdown();
-        android::ANativeWindowCreator::Destroy(::window);
-        ::window = android::ANativeWindowCreator::Create("AImGui", native_window_screen_x, native_window_screen_y, permeate_record);
-        graphics->Init_Render(::window, native_window_screen_x, native_window_screen_y);
-        ::init_My_drawdata();
-    }
-
-    static uint32_t orientation = -1;
-    screen_config();
-    if (orientation != displayInfo.orientation) {
-        orientation = displayInfo.orientation;
-        Touch::setOrientation((int)displayInfo.orientation);
-        if (g_window != NULL) {
-            g_window->Pos.x = 100;
-            g_window->Pos.y = 125;        
-        }
-    }
-}
+// ⚠️ 注意：这里不再定义 screen_config() 和 drawBegin()
+// 它们已经在 main.cpp 中定义了
 
 void Layout_tick_UI(bool *main_thread_flag) {
     static int style_idx = 0;
@@ -160,24 +133,18 @@ void Layout_tick_UI(bool *main_thread_flag) {
     float width = 48.0f;
     float radius = height * 0.5f;
     
-    // 画背景（圆角矩形）
+    // 画背景
     ImU32 bgColor = aimbot ? IM_COL32(100, 200, 100, 255) : IM_COL32(80, 80, 80, 255);
     ImGui::GetWindowDrawList()->AddRectFilled(
-        p, 
-        ImVec2(p.x + width, p.y + height), 
-        bgColor, 
-        radius
+        p, ImVec2(p.x + width, p.y + height), bgColor, radius
     );
     
-    // 画滑块（白色圆）
+    // 画滑块
     float thumbPos = aimbot ? p.x + width - height : p.x;
     ImGui::GetWindowDrawList()->AddCircleFilled(
-        ImVec2(thumbPos + radius, p.y + radius), 
-        radius - 3, 
-        IM_COL32_WHITE
+        ImVec2(thumbPos + radius, p.y + radius), radius - 3, IM_COL32_WHITE
     );
     
-    // 不可见按钮处理点击
     ImGui::InvisibleButton("##aimbot_toggle", ImVec2(width, height));
     if (ImGui::IsItemClicked()) {
         aimbot = !aimbot;
@@ -204,12 +171,6 @@ void Layout_tick_UI(bool *main_thread_flag) {
         
         ImGui::Unindent(24);
         ImGui::Spacing();
-    }
-    
-    // 持续执行的逻辑
-    if (aimbot) {
-        // 这里写每帧执行的自瞄代码
-        // __android_log_print(ANDROID_LOG_INFO, "PureElf", "自瞄运行中");
     }
     
     ImGui::Spacing();
